@@ -2,7 +2,9 @@ import cv2
 import os
 import numpy as np
 import math
-from matplotlib import pyplot as plt
+from picamera.array import PiRGBArray
+from picamera import PiCamera
+import time
 directory_path = os.getcwd()
 
 HISTO_ROWS = 5
@@ -30,14 +32,14 @@ def canny_filter(img):
 
   return edges
 
-def run_cv(cap):
+def run_cv(camera, cap):
   
-  fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-  video = cv2.VideoWriter('video.mp4', fourcc, 1, (480, 360))
+  # fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+  # video = cv2.VideoWriter('video.mp4', fourcc, 1, (480, 360))
 
-  while (cap.isOpened()):
+  for frame in camera.capture_continuous(cap, format="bgr", use_video_port=True):
 
-    ret, test_image = cap.read()
+    test_image = frame.array
     test_image = cv2.resize(test_image, (480, 360))
     
     height = test_image.shape[0]
@@ -96,5 +98,9 @@ def run_cv(cap):
 
 
 if __name__ == "__main__":
-  pipeline = cv2.VideoCapture(directory_path + '/line.mp4')
-  run_cv(pipeline)
+  camera = PiCamera()
+  camera.resolution = (640, 480)
+  camera.framerate = 32
+  pipeline = PiRGBArray(camera, size=(640, 480))
+  time.sleep(0.1)
+  run_cv(camera, pipeline)
