@@ -1,7 +1,9 @@
 import cv2
 import os
 import numpy as np
-import math
+import time
+from picamera.array import PiRGBArray
+from picamera import PiCamera
 directory_path = os.getcwd()
 
 HISTO_ROWS = 5
@@ -13,7 +15,7 @@ def color_filter(img):
   blur = cv2.blur(hsv, (kernel_size, kernel_size), 0)
 
   black_low = np.array([0, 0, 0])
-  black_up = np.array([360, 255, 60])
+  black_up = np.array([360, 255, 70])
 
   mask = cv2.inRange(blur, black_low, black_up)
 
@@ -29,15 +31,18 @@ def canny_filter(img):
 
   return edges
 
-def run_cv(cap):
+def run_cv():
   
   fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
-  video = cv2.VideoWriter('video.mp4', fourcc, 1, (480, 360))
-
-  while (cap.isOpened()):
-
-    ret, test_image = cap.read()
-    test_image = cv2.resize(test_image, (480, 360))
+  video = cv2.VideoWriter('video.mp4', fourcc, 30, (640, 480))
+  camera = PiCamera()
+  rawCapture = PiRGBArray(camera)
+  camera.resolution = (640, 480)
+  camera.framerate = 30
+  time.sleep(0.1)
+  for test_image in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+    # ret, test_image = cap.read()
+    test_image = cv2.resize(test_image, (640, 480))
     
     height = test_image.shape[0]
     width = test_image.shape[1]
@@ -95,5 +100,5 @@ def run_cv(cap):
 
 
 if __name__ == "__main__":
-  pipeline = cv2.VideoCapture(0)
-  run_cv(pipeline)
+  # pipeline = cv2.VideoCapture(directory_path + '\line.mp4')
+  run_cv()
