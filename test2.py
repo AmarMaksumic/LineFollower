@@ -9,47 +9,68 @@ directory_path = os.getcwd()
 HISTO_ROWS = 5
 
 def color_filter(img):
-  hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+  kernel_size = 7
+  blur = cv2.blur(img, (kernel_size, kernel_size), 0)
 
-  kernel_size = 5
-  blur = cv2.blur(hsv, (kernel_size, kernel_size), 0)
+  cv2.imshow('blur', blur)
 
-  black_low = np.array([0, 0, 0])
-  black_up = np.array([360, 255, 70])
+  b_low = np.array([0, 0, 0])
+  b_up = np.array([110, 110, 110])
 
-  mask = cv2.inRange(blur, black_low, black_up)
+  mask = cv2.inRange(blur, b_low, b_up)
 
   return cv2.bitwise_not(mask)
-
-def canny_filter(img):
-  blurred_img = cv2.blur(img,ksize=(5,5))
-  med_val = np.median(blurred_img) 
-  low_thres = int(max(0 ,0.5*med_val))
-  high_thres = int(min(255,2.0*med_val))
-  print("l: " + str(low_thres) + " h: " + str(high_thres) + " med: " + str(med_val))
-  edges = cv2.Canny(img, low_thres, high_thres)
-
-  return edges
 
 def run_cv():
   
   fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
   video = cv2.VideoWriter('video.mp4', fourcc, 30, (640, 480))
   camera = PiCamera()
-  rawCapture = PiRGBArray(camera)
+  camera.rotation = 180
   camera.resolution = (640, 480)
-  camera.framerate = 30
+  camera.awb_mode = 'fluorescent'
+  camera.awb_gains = 4
+  camera.exposure_mode = 'off'
+  rawCapture = PiRGBArray(camera, size=(640, 480))
   time.sleep(0.1)
-  for test_image in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-    # ret, test_image = cap.read()
-    test_image = cv2.resize(test_image, (640, 480))
+  for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
     
+    test_image = frame.array
     height = test_image.shape[0]
     width = test_image.shape[1]
     height_thresh = height/HISTO_ROWS
 
+    
+    pt_a_x = 2.25*(test_image.shape[1]/7)
+    pt_a_y = 7.5*(test_image.shape[0]/10)
+    pt_b_x = 1.25*(test_image.shape[1]/7)
+    pt_b_y = 10*(test_image.shape[0]/10)
+    pt_c_x = 5.75*(test_image.shape[1]/7)
+    pt_c_y = 10*(test_image.shape[0]/10)
+    pt_d_x = 4.75*(test_image.shape[1]/7)
+    pt_d_y = 7.5*(test_image.shape[0]/10)
+
+    width_AD = np.sqrt(((pt_a_x - pt_d_x) ** 2) + ((pt_a_y - pt_d_y) ** 2))
+    width_BC = np.sqrt(((pt_b_x - pt_c_x) ** 2) + ((pt_b_y - pt_c_y) ** 2))
+    maxWidth = max(int(width_AD), int(width_BC))
+
+    height_AB = np.sqrt(((pt_a_x - pt_b_x) ** 2) + ((pt_a_y - pt_b_y) ** 2))
+    height_CD = np.sqrt(((pt_c_x - pt_d_x) ** 2) + ((pt_c_y - pt_d_y) ** 2))
+    maxHeight = max(int(height_AB), int(height_CD))
+
+    input_pts = np.float32([[pt_a_x, pt_a_y], [pt_b_x, pt_b_y], [pt_c_x, pt_c_y], [pt_d_x, pt_d_y]])
+    output_pts = np.float32([[0, 0],
+                            [0, maxHeight - 1],
+                            [maxWidth - 1, maxHeight - 1],
+                            [maxWidth - 1, 0]])
+
+    M = cv2.getPerspectiveTransform(input_pts,output_pts)
+    roi_transform = cv2.warpPerspective(test_image, M, (maxWidth, maxHeight), flags=cv2.INTER_LINEAR)
+    test_image = cv2.resize(roi_transform, (640, 480))
+
     filtered = color_filter(test_image)
 
+    cv2.imshow('filtered', filtered)
 
     average_locations = []
 
@@ -67,17 +88,6 @@ def run_cv():
             )
             average_locations.append(avg_location)
 
-    # print(average_locations)
-
-
-    # for row in range(360):
-    #   for col in range(480):
-    #     # if filtered[row][col] == 255:
-    #       # num_elements = histo_arr[int(row/height_thresh)][1]
-    #       # histo_arr[int(row/height_thresh)][0] = (histo_arr[int(row/height_thresh)][0]*num_elements + col)/(num_elements + 1)
-    #       # histo_arr[int(row/height_thresh)][1] += 1
-
-
     for index in range(len(average_locations)):
       cords = average_locations[index]
       cv2.circle(test_image, (int(cords[0]), int(cords[1])), 5, (0, 255, 0), -1)
@@ -85,9 +95,8 @@ def run_cv():
         cords_old = average_locations[index-1]
         cv2.line(test_image, (int(cords[0]), int(cords[1])), (int(cords_old[0]), int(cords_old[1])), (255, 0, 0), 3)
 
-    # draw_lines_all(test_image, lines)
     cv2.imshow('image', test_image)
-    video.write(test_image)
+    rawCapture.truncate(0)
     
     if cv2.waitKey(25) & 0xFF == ord('q'):
       break
@@ -96,7 +105,7 @@ def run_cv():
   cap.release()
   # Closes all the windows currently opened.
   cv2.destroyAllWindows()
-  video.release()
+  #video.release()
 
 
 if __name__ == "__main__":
