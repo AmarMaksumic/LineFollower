@@ -87,6 +87,8 @@ def run_cv():
                 int(y + np.mean(black_pixels[0]))  # Average row
             )
             average_locations.append(avg_location)
+    
+    blank_image = np.zeros((test_image.shape[0], test_image.shape[1], 4), np.uint8)
 
     for index in range(len(average_locations)):
       cords = average_locations[index]
@@ -95,7 +97,19 @@ def run_cv():
         cords_old = average_locations[index-1]
         cv2.line(test_image, (int(cords[0]), int(cords[1])), (int(cords_old[0]), int(cords_old[1])), (255, 0, 0), 3)
 
-    cv2.imshow('image', test_image)
+    pts_src = np.array([[0, 0], [0, blank_image.shape[0]], [blank_image.shape[1], blank_image.shape[0]], [blank_image.shape[1], 0]])
+    pts_dst = np.array([[pt_a_x, pt_a_y], [pt_b_x, pt_b_y], [pt_c_x, pt_c_y], [pt_d_x, pt_d_y]])
+
+    h, status = cv2.findHomography(pts_src, pts_dst)
+
+    im_out = cv2.warpPerspective(blank_image, h, (test_image.shape[1], test_image.shape[0]))
+
+    test_image = cv2.cvtColor(test_image, cv2.COLOR_BGR2BGRA)
+
+    im_out = cv2.addWeighted(test_image, 1, im_out, 1, 0.0)
+
+
+    cv2.imshow('image', im_out)
     rawCapture.truncate(0)
     
     if cv2.waitKey(25) & 0xFF == ord('q'):
